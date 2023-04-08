@@ -1,0 +1,4 @@
+pvrecorder~=1.1.1
+transformers~=4.27.4
+happytransformer~=2.4.1
+elevenlabslib~=0.4.1
