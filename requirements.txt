@@ -5,3 +5,4 @@ PyAudio~=0.2.13
 pyqtdarktheme~=2.1.0
 librosa~=0.10.0.post2
 soundfile~=0.12.1
+matplotlib~=3.7.1
