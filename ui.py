@@ -56,6 +56,11 @@ class ElevensLabS4TS(QMainWindow):
 
         self.transcript_mode_label = QLabel("Transcript Mode")
         self.transcript_mode_checkbox = QCheckBox()
+        self.transcript_mode_checkbox.stateChanged.connect(self.on_use_transcript_mode_checkbox)
+
+        self.use_medium_model_label = QLabel("Use Medium Model")
+        self.use_medium_model_checkbox = QCheckBox()
+        self.use_medium_model_checkbox.stateChanged.connect(self.on_use_medium_model_checkbox)
 
         self.record_button = QPushButton("Record")
         self.record_button.pressed.connect(self.on_record_button)
@@ -77,8 +82,13 @@ class ElevensLabS4TS(QMainWindow):
         self.layout.addWidget(self.output_label, 2, 0)
         self.layout.addWidget(self.output_combo, 2, 1)
 
-        self.layout.addWidget(self.transcript_mode_label, 4, 0)
-        self.layout.addWidget(self.transcript_mode_checkbox, 4, 1)
+        toggle_layout = QGridLayout()
+        toggle_layout.addWidget(self.transcript_mode_label, 0, 0)
+        toggle_layout.addWidget(self.transcript_mode_checkbox, 0, 1)
+        toggle_layout.addWidget(self.use_medium_model_label, 0, 2)
+        toggle_layout.addWidget(self.use_medium_model_checkbox, 0, 3)
+
+        self.layout.addLayout(toggle_layout, 4, 0, 1, 2)
 
         self.layout.addWidget(self.record_button, 5, 0, 1, 2)
 
@@ -148,6 +158,28 @@ class ElevensLabS4TS(QMainWindow):
             self.status_bar.showMessage('Playing audio')
             self.media_player.setSource('elevenlabs.wav')
             self.media_player.play()
+
+    def on_use_transcript_mode_checkbox(self):
+        checked = self.transcript_mode_checkbox.isChecked()
+        if checked:
+            self.status_bar.showMessage('Now using transcription mode')
+        else:
+            self.status_bar.showMessage('Now using S4TS mode')
+
+    def on_use_medium_model_checkbox(self):
+        checked = self.use_medium_model_checkbox.isChecked()
+        self.status_bar.showMessage('Changing model, this may take a while...')
+        thread = threading.Thread(target=self.model_changed_thread, args=(checked,))
+        thread.start()
+
+    def model_changed_thread(self, checked: bool):
+        def thread_target():
+            param = 'medium' if checked else 'base'
+            whisper.set_param_size(param)
+            self.status_bar.showMessage(f'Model changed to {param}')
+
+        thread = threading.Thread(target=thread_target)
+        thread.start()
 
     def on_api_key_input(self):
         self.api_key_input.setDisabled(True)
