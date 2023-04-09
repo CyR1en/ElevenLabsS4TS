@@ -66,6 +66,10 @@ class ConfigNode(Enum):
     and index[2] is the default value of the key when the fil is generated.
     """
     API_KEY = ("API_KEY", "replace this with your eleven labs API key")
+    VOICE = ("Voice", "")
+    INPUT = ("Input", "")
+    OUTPUT = ("Output", "")
+    T_MODE = ("T_Mode", "0")
 
     def get_key(self):
         return self.value[0]

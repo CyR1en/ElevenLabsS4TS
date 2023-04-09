@@ -62,15 +62,19 @@ class ElevensLabS4TS(QMainWindow):
         self.input_devices = record.get_audio_devices()
         self._fix_input_names()
         self.device_combo.addItems(self.input_devices)
+        self.change_if_config_set(self.config.get(ConfigNode.INPUT), self.device_combo)
+        self.device_combo.currentTextChanged.connect(self.on_device_combo_name_changed)
 
         self.output_label = QLabel("Output")
         self.output_combo = QComboBox()
         self.audio_output_devices = QMediaDevices.audioOutputs()
         self.output_combo.addItems([device.description() for device in self.audio_output_devices])
+        self.change_if_config_set(self.config.get(ConfigNode.OUTPUT), self.output_combo)
         self.output_combo.currentIndexChanged.connect(self.on_output_combo_index_changed)
 
         self.transcript_mode_label = QLabel("Transcript Mode")
         self.transcript_mode_checkbox = QCheckBox()
+        self.change_if_config_set(self.config.get(ConfigNode.T_MODE), self.transcript_mode_checkbox)
         self.transcript_mode_checkbox.stateChanged.connect(self.on_use_transcript_mode_checkbox)
 
         self.use_medium_model_label = QLabel("Use Medium Model")
@@ -161,11 +165,31 @@ class ElevensLabS4TS(QMainWindow):
         self.voice_label = QLabel("Voice")
         self.voice_combo = QComboBox()
         self.voice_combo.addItems(self.tts.get_voices())
+        self.change_if_config_set(self.config.get(ConfigNode.VOICE), self.voice_combo)
+        self.voice_combo.currentIndexChanged.connect(self.on_voice_combo_index_changed)
         self.layout.addWidget(self.voice_label, 3, 0)
         self.layout.addWidget(self.voice_combo, 3, 1)
 
+    def on_device_combo_name_changed(self):
+        curr_name = self.device_combo.currentText()
+        self.config.set(ConfigNode.INPUT, curr_name)
+
     def on_output_combo_index_changed(self):
-        self.output.setDevice(self.audio_output_devices[self.output_combo.currentIndex()])
+        device = self.audio_output_devices[self.output_combo.currentIndex()]
+        self.output.setDevice(device)
+        self.config.set(ConfigNode.OUTPUT, device.description())
+
+    def on_voice_combo_index_changed(self):
+        self.config.set(ConfigNode.VOICE, self.voice_combo.currentText())
+
+    @staticmethod
+    def change_if_config_set(config_val: str, widget: QComboBox | QCheckBox):
+        if config_val == 'True' or config_val == 'False' or config_val == '0' or config_val == '1':
+            widget.setChecked(config_val == 'True' or config_val == '1')
+        elif config_val != '':
+            widget_index = widget.findText(config_val)
+            if widget != -1:
+                widget.setCurrentIndex(widget_index)
 
     def on_record_button(self):
         self.recFile = self.recorder.open('recorded.wav', 'wb')
@@ -191,6 +215,7 @@ class ElevensLabS4TS(QMainWindow):
 
     def on_use_transcript_mode_checkbox(self):
         checked = self.transcript_mode_checkbox.isChecked()
+        self.config.set(ConfigNode.T_MODE, checked)
         if checked:
             self.status_bar.showMessage('Now using transcription mode')
         else:
