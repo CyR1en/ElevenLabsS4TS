@@ -22,19 +22,20 @@ class Recorder(object):
     Records in mono by default.
     """
 
-    def __init__(self, channels=1, rate=44100, frames_per_buffer=1024):
+    def __init__(self, channels=1, rate=44100, frames_per_buffer=1024, update_func=None):
         self.channels = channels
         self.rate = rate
         self.frames_per_buffer = frames_per_buffer
+        self.update_func = update_func
 
     def open(self, fname, mode='wb'):
         return RecordingFile(fname, mode, self.channels, self.rate,
-                             self.frames_per_buffer)
+                             self.frames_per_buffer, self.update_func)
 
 
 class RecordingFile(object):
     def __init__(self, fname, mode, channels,
-                 rate, frames_per_buffer):
+                 rate, frames_per_buffer, update_func=None):
         self.fname = fname
         self.mode = mode
         self.channels = channels
@@ -42,6 +43,7 @@ class RecordingFile(object):
         self.frames_per_buffer = frames_per_buffer
         self._pa = pyaudio.PyAudio()
         self.wavefile = self._prepare_file(self.fname, self.mode)
+        self.update_func = update_func
         self._stream = None
 
     def __enter__(self):
@@ -81,6 +83,10 @@ class RecordingFile(object):
     def get_callback(self):
         def callback(in_data, frame_count, time_info, status):
             self.wavefile.writeframes(in_data)
+            data = [int.from_bytes(in_data[i:i + 2], byteorder='little', signed=True) for i in
+                    range(0, len(in_data), 2)]
+            if self.update_func is not None:
+                self.update_func(data, frame_count)
             return in_data, pyaudio.paContinue
 
         return callback

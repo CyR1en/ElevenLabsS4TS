@@ -1,11 +1,14 @@
 import sys
 import threading
 
+import numpy as np
 from PySide6 import QtGui
 from PySide6.QtCore import Qt
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QMediaDevices
 from PySide6.QtWidgets import QMainWindow, QGridLayout, QWidget, QLabel, QApplication, QLineEdit, QComboBox, \
-    QPushButton, QCheckBox, QStatusBar
+    QPushButton, QCheckBox, QStatusBar, QMessageBox
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+from matplotlib.figure import Figure
 
 import record
 import whisper
@@ -17,14 +20,26 @@ from configuration import ConfigFile, ConfigNode
 from record import Recorder
 
 
-# Subclass QMainWindow to customize your application's main window
+class MplCanvas(FigureCanvasQTAgg):
+
+    def __init__(self, parent=None, width=5, height=3, dpi=100):
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        fig.patch.set_alpha(0)
+        fig.set_constrained_layout_pads(w_pad=0, h_pad=0, wspace=0, hspace=0)
+        self.axes = fig.add_subplot(111)
+        self.axes.axis('off')
+        self.axes.margins(0, 0, tight=True)
+        self.axes.set_ylim(-1000, 1000)
+        super(MplCanvas, self).__init__(fig)
+
+
 class ElevensLabS4TS(QMainWindow):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super(ElevensLabS4TS, self).__init__(*args, **kwargs)
         self.recFile = None
         self.config = ConfigFile('config')
 
-        self.recorder = Recorder(channels=1, rate=16000, frames_per_buffer=1024)
+        self.recorder = Recorder(channels=1, rate=16000, frames_per_buffer=1024, update_func=self.update_plot)
 
         self.setWindowTitle("ElevenLabsS4TS")
 
@@ -66,6 +81,9 @@ class ElevensLabS4TS(QMainWindow):
         self.record_button.pressed.connect(self.on_record_button)
         self.record_button.released.connect(self.on_stop_button)
 
+        self.plot = MplCanvas(self, width=5, height=2, dpi=100)
+        self.plot.axes.plot([0, 1, 2, 3, 4], [10, 1, 20, 3, 40])
+
         self.transcript = QLabel("Transcription")
         self.transcription_preview = QLineEdit()
         self.transcription_preview.setReadOnly(True)
@@ -92,8 +110,10 @@ class ElevensLabS4TS(QMainWindow):
 
         self.layout.addWidget(self.record_button, 5, 0, 1, 2)
 
-        self.layout.addWidget(self.transcript, 6, 0)
-        self.layout.addWidget(self.transcription_preview, 7, 0, 1, 2)
+        self.layout.addWidget(self.plot, 6, 0, 1, 2)
+
+        self.layout.addWidget(self.transcript, 7, 0)
+        self.layout.addWidget(self.transcription_preview, 8, 0, 1, 2)
 
         # Set layout for central widget
         self.widget = QWidget()
@@ -125,6 +145,17 @@ class ElevensLabS4TS(QMainWindow):
             for j in named_devices:
                 if j.startswith(i):
                     self.input_devices[self.input_devices.index(i)] = j
+
+    def update_plot(self, input_data, frame_count):
+        self.plot.axes.cla() # Clear the canvas.
+        self.plot.axes.margins(0, 0, tight=True)
+        self.plot.axes.axis('off')
+        self.plot.axes.set_ylim(-1000, 1000)
+        window_size = 30
+        y_smooth = np.convolve(input_data, np.ones(window_size) / window_size, mode='same')
+        self.plot.axes.plot(range(0, len(input_data)), y_smooth, 'r', alpha=0.5)
+        # Trigger the canvas to update and redraw.
+        self.plot.draw()
 
     def _setup_voice(self):
         self.tts = ElevenLabsTTS(self.config)
