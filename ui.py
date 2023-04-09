@@ -4,7 +4,8 @@ import threading
 from PySide6 import QtGui
 from PySide6.QtCore import Qt
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QMediaDevices
-from PySide6.QtWidgets import QMainWindow, QGridLayout, QWidget, QLabel, QApplication, QLineEdit, QComboBox, QPushButton
+from PySide6.QtWidgets import QMainWindow, QGridLayout, QWidget, QLabel, QApplication, QLineEdit, QComboBox, \
+    QPushButton, QCheckBox
 
 import record
 import whisper
@@ -53,6 +54,9 @@ class ElevensLabS4TS(QMainWindow):
         self.output_combo.addItems([device.description() for device in self.audio_output_devices])
         self.output_combo.currentIndexChanged.connect(self.on_output_combo_index_changed)
 
+        self.transcript_mode_label = QLabel("Transcript Mode")
+        self.transcript_mode_checkbox = QCheckBox()
+
         self.record_button = QPushButton("Record")
         self.record_button.pressed.connect(self.on_record_button)
         self.record_button.released.connect(self.on_stop_button)
@@ -71,10 +75,13 @@ class ElevensLabS4TS(QMainWindow):
         self.layout.addWidget(self.output_label, 2, 0)
         self.layout.addWidget(self.output_combo, 2, 1)
 
-        self.layout.addWidget(self.record_button, 4, 0, 1, 2)
+        self.layout.addWidget(self.transcript_mode_label, 4, 0)
+        self.layout.addWidget(self.transcript_mode_checkbox, 4, 1)
 
-        self.layout.addWidget(self.transcript, 5, 0)
-        self.layout.addWidget(self.transcription_preview, 6, 0, 1, 2)
+        self.layout.addWidget(self.record_button, 5, 0, 1, 2)
+
+        self.layout.addWidget(self.transcript, 6, 0)
+        self.layout.addWidget(self.transcription_preview, 7, 0, 1, 2)
 
         # Set layout for central widget
         self.widget = QWidget()
@@ -133,8 +140,9 @@ class ElevensLabS4TS(QMainWindow):
         text = whisper.whisper_transcribe(file)
         self.transcription_preview.setText(text)
         self.tts.tts(text, self.voice_combo.currentText())
-        self.media_player.setSource('elevenlabs.wav')
-        self.media_player.play()
+        if not self.transcript_mode_checkbox.isChecked():
+            self.media_player.setSource('elevenlabs.wav')
+            self.media_player.play()
 
     def on_api_key_input(self):
         self.api_key_input.setDisabled(True)
