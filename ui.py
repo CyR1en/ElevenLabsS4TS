@@ -90,7 +90,7 @@ class ElevensLabS4TS(QMainWindow):
         self.layout.setAlignment(Qt.AlignTop)
         self.widget.setLayout(self.layout)
 
-        self.setFixedSize(self.sizeHint())
+        self.setFixedSize(380, self.sizeHint().height())
 
         self.setCentralWidget(self.widget)
         self.setStatusBar(self.status_bar)
