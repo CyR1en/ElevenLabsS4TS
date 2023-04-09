@@ -22,6 +22,10 @@ def transcribe(file_name: str) -> str:
     transcription: str = processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
     return transcription.strip()
 
-def whisper_transcribe(file_name: str) -> str:
-    text = whisper(file_name)
-    return text['text']
+
+def set_param_size(param_size: str = 'base'):
+    global model, processor, tokenizer
+    tokenizer = WhisperTokenizerFast.from_pretrained(f'openai/whisper-{param_size}')
+    processor = WhisperProcessor.from_pretrained(f'openai/whisper-{param_size}', tokenizer=tokenizer)
+    model = WhisperForConditionalGeneration.from_pretrained(f'openai/whisper-{param_size}')
+
