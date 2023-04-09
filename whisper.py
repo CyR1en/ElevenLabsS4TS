@@ -20,8 +20,7 @@ def is_cuda():
 
 def transcribe(file_name: str) -> str:
     audio, sample_rate = sf.read(file_name)
-
-    input_features = processor(audio, sampling_rate=sample_rate, return_tensors="pt").input_features
+    input_features = processor(audio, sampling_rate=sample_rate, return_tensors="pt").input_features.to(device)
     predicted_ids = model.generate(input_features, max_length=1000)
     transcription: str = processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
     return transcription.strip()
