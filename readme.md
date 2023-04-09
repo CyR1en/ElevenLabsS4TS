@@ -4,7 +4,7 @@ _Speech to text, text to Speech - STTTTS - S4TS_
 
 ElevenLabs S4TS is a PySide6 (Qt) application that does speech to text and then text to speech using eleven labs. The automatic speech recognition (ASR) model used for this application is OpenAI’s [Whisper](https://openai.com/research/whisper) model (`OpenAI/whisper-medium`). It will automatically use `cuda` if your hardware supports `cuda` and your PyTorch is installed to support it.
 
-![image](https://raw.githubusercontent.com/CyR1en/ElevenLabsS4TS/master/docs/image.png)
+![image](https://github.com/CyR1en/ElevenLabsS4TS/blob/master/docs/image-with-transcript.png)
 
 #### Install Dependencies
 
