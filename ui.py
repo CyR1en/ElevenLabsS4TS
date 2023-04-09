@@ -150,10 +150,10 @@ class ElevensLabS4TS(QMainWindow):
                     self.input_devices[self.input_devices.index(i)] = j
 
     def update_plot(self, input_data, frame_count):
-        self.plot.axes.cla() # Clear the canvas.
+        self.plot.axes.cla()  # Clear the canvas.
         self.plot.axes.margins(0, 0, tight=True)
         self.plot.axes.axis('off')
-        self.plot.axes.set_ylim(-1000, 1000)
+        self.plot.axes.set_ylim(-2000, 2000)
         window_size = 30
         y_smooth = np.convolve(input_data, np.ones(window_size) / window_size, mode='same')
         self.plot.axes.plot(range(0, len(input_data)), y_smooth, 'r', alpha=0.5)
