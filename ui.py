@@ -140,7 +140,7 @@ class ElevensLabS4TS(QMainWindow):
         thread.start()
 
     def thread_target(self, file: str):
-        text = whisper.whisper_transcribe(file)
+        text = whisper.transcribe(file)
         self.transcription_preview.setText(text)
         self.status_bar.showMessage('Transcription done')
         self.tts.tts(text, self.voice_combo.currentText())
