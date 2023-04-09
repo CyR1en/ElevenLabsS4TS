@@ -117,13 +117,12 @@ class ElevensLabS4TS(QMainWindow):
 
         # Set layout for central widget
         self.widget = QWidget()
-        self.layout.setAlignment(Qt.AlignTop)
         self.widget.setLayout(self.layout)
-
-        self.setFixedSize(380, self.sizeHint().height())
-
         self.setCentralWidget(self.widget)
         self.setStatusBar(self.status_bar)
+
+        self.setFixedSize(380, 400)
+        self.show()
 
     def _setup_player(self):
         self.media_player = QMediaPlayer()
@@ -199,6 +198,16 @@ class ElevensLabS4TS(QMainWindow):
 
     def on_use_medium_model_checkbox(self):
         checked = self.use_medium_model_checkbox.isChecked()
+        if not whisper.is_cuda() and checked:
+            message_box = QMessageBox()
+            message_box.setIcon(QMessageBox.Icon.Warning)
+            message_box.setWindowTitle('Warning')
+            message_box.setFixedHeight(10)
+            message_box.setText('Device set to CPU, are you sure you want to use the medium model?')
+            message_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if message_box.exec() == QMessageBox.StandardButton.No:
+                self.use_medium_model_checkbox.setChecked(False)
+                return
         self.status_bar.showMessage('Changing model, this may take a while...')
         thread = threading.Thread(target=self.model_changed_thread, args=(checked,))
         thread.start()
@@ -223,6 +232,5 @@ if __name__ == "__main__":
     application = QApplication(sys.argv)
     qdarktheme.setup_theme("auto")
     window = ElevensLabS4TS()
-    window.show()
 
     application.exec()
