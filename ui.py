@@ -5,7 +5,7 @@ from PySide6 import QtGui
 from PySide6.QtCore import Qt
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QMediaDevices
 from PySide6.QtWidgets import QMainWindow, QGridLayout, QWidget, QLabel, QApplication, QLineEdit, QComboBox, \
-    QPushButton, QCheckBox
+    QPushButton, QCheckBox, QStatusBar
 
 import record
 import whisper
@@ -65,6 +65,8 @@ class ElevensLabS4TS(QMainWindow):
         self.transcription_preview = QLineEdit()
         self.transcription_preview.setReadOnly(True)
 
+        self.status_bar = QStatusBar()
+
         # Set layout
         self.layout.addWidget(api_key_label, 0, 0)
         self.layout.addWidget(self.api_key_input, 0, 1)
@@ -91,6 +93,7 @@ class ElevensLabS4TS(QMainWindow):
         self.setFixedSize(self.sizeHint())
 
         self.setCentralWidget(self.widget)
+        self.setStatusBar(self.status_bar)
 
     def _setup_player(self):
         self.media_player = QMediaPlayer()
@@ -132,15 +135,17 @@ class ElevensLabS4TS(QMainWindow):
         if self.recFile is None:
             return
         self.recFile.stop_recording()
-        self.transcription_preview.setText('Transcribing...')
+        self.status_bar.showMessage('Transcribing...')
         thread = threading.Thread(target=self.thread_target, args=('recorded.wav',))
         thread.start()
 
     def thread_target(self, file: str):
         text = whisper.whisper_transcribe(file)
         self.transcription_preview.setText(text)
+        self.status_bar.showMessage('Transcription done')
         self.tts.tts(text, self.voice_combo.currentText())
         if not self.transcript_mode_checkbox.isChecked():
+            self.status_bar.showMessage('Playing audio')
             self.media_player.setSource('elevenlabs.wav')
             self.media_player.play()
 
