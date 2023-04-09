@@ -24,7 +24,7 @@ class ElevensLabS4TS(QMainWindow):
         self.recFile = None
         self.config = ConfigFile('config')
 
-        self.recorder = Recorder(channels=2, rate=16000, frames_per_buffer=1024)
+        self.recorder = Recorder(channels=1, rate=16000, frames_per_buffer=1024)
 
         self.setWindowTitle("ElevenLabsS4TS")
 
