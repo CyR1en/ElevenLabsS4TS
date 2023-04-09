@@ -1,6 +1,7 @@
 transformers~=4.27.4
-happytransformer~=2.4.1
 elevenlabslib~=0.4.1
 PySide6~=6.5.0
 PyAudio~=0.2.13
 pyqtdarktheme~=2.1.0
+librosa~=0.10.0.post2
+soundfile~=0.12.1
