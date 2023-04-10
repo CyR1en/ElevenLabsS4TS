@@ -117,7 +117,7 @@ class ElevensLabS4TS(QMainWindow):
         y = [self.wave_func(x) for x in range(0, 1024)]
         y_max = max([max(y), 4000])
         self.plot.axes.set_ylim(-y_max, y_max)
-        self.gradient = util.calculate_gradient_str('0xfe8c00', '0xf83600', 1024)
+        self.gradient = util.calculate_gradient_str('0x2b5876', '0x4e4376', 1024)
         self.plot.axes.scatter(x, y, c=self.gradient, s=2)
 
         self.transcript = QLabel("Transcription")
