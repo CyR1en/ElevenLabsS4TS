@@ -22,19 +22,47 @@ from record import Recorder
 class MplCanvas(FigureCanvasQTAgg):
 
     def __init__(self, parent=None, width=5, height=3, dpi=100):
-        fig = Figure(figsize=(width, height), dpi=dpi)
-        fig.patch.set_alpha(0)
-        fig.set_constrained_layout_pads(w_pad=0, h_pad=0, wspace=0, hspace=0)
-        self.axes = fig.add_subplot(111)
+        self.fig = Figure(figsize=(width, height), dpi=dpi)
+        self.fig.patch.set_alpha(0)
+        self.axes = self.fig.add_subplot(111)
         self.axes.axis('off')
         self.axes.margins(0, 0, tight=True)
-        self.axes.set_ylim(-1000, 1000)
-        super(MplCanvas, self).__init__(fig)
+        self.fig.set_constrained_layout_pads(w_pad=0.05, h_pad=0.05, wspace=0.05, hspace=0.05)
+        self.fig.tight_layout()
+        self.fig.set_size_inches(self.fig.get_size_inches()[0], 0.5)
+        super(MplCanvas, self).__init__(self.fig)
+
+
+class S4TSWorkerSignals(QObject):
+    transcription_finished = QtCore.Signal(str)
+    tts_finished = QtCore.Signal()
+    finished = QtCore.Signal()
+
+
+class S4TSWorker(QRunnable):
+
+    def __init__(self, stt_file: str, tts: ElevenLabsTTS, voice: str, *args, **kwargs):
+        super(S4TSWorker, self).__init__()
+        self.stt_file = stt_file
+        self.tts = tts
+        self.voice = voice
+        # Add the callback to our kwargs
+        self.args = args
+        self.kwargs = kwargs
+        self.signals = S4TSWorkerSignals()
+
+    @Slot()
+    def run(self):
+        text = whisper.transcribe(self.stt_file)
+        self.signals.transcription_finished.emit(text)
+        self.tts.tts(text, self.voice)
+        self.signals.tts_finished.emit()
 
 
 class ElevensLabS4TS(QMainWindow):
     def __init__(self, *args, **kwargs):
         super(ElevensLabS4TS, self).__init__(*args, **kwargs)
+        self.threadpool = QtCore.QThreadPool()
         self.recFile = None
         self.config = ConfigFile('config')
 
@@ -84,8 +112,13 @@ class ElevensLabS4TS(QMainWindow):
         self.record_button.pressed.connect(self.on_record_button)
         self.record_button.released.connect(self.on_stop_button)
 
-        self.plot = MplCanvas(self, width=5, height=2, dpi=100)
-        self.plot.axes.plot([0, 1, 2, 3, 4], [10, 1, 20, 3, 40])
+        self.plot = MplCanvas(self, width=5, height=1, dpi=100)
+        x = [i for i in range(0, 1024)]
+        y = [self.wave_func(x) for x in range(0, 1024)]
+        y_max = max([max(y), 4000])
+        self.plot.axes.set_ylim(-y_max, y_max)
+        self.gradient = util.calculate_gradient_str('0xfe8c00', '0xf83600', 1024)
+        self.plot.axes.scatter(x, y, c=self.gradient, s=2)
 
         self.transcript = QLabel("Transcription")
         self.transcription_preview = QLineEdit()
@@ -123,9 +156,13 @@ class ElevensLabS4TS(QMainWindow):
         self.widget.setLayout(self.layout)
         self.setCentralWidget(self.widget)
         self.setStatusBar(self.status_bar)
-
-        self.setFixedSize(380, 400)
+        self.setFixedSize(420, 333)
         self.show()
+
+    @staticmethod
+    def wave_func(x):
+        x = x / 200
+        return (np.sin(8.8 * np.pi * x) + np.sin(11.0 * np.pi * x) + np.sin(13.2 * np.pi * x)) * 10 ** 3.1
 
     def _setup_player(self):
         self.media_player = QMediaPlayer()
@@ -152,10 +189,12 @@ class ElevensLabS4TS(QMainWindow):
         self.plot.axes.cla()  # Clear the canvas.
         self.plot.axes.margins(0, 0, tight=True)
         self.plot.axes.axis('off')
-        self.plot.axes.set_ylim(-2000, 2000)
         window_size = 30
         y_smooth = np.convolve(input_data, np.ones(window_size) / window_size, mode='same')
-        self.plot.axes.plot(range(0, len(input_data)), y_smooth, 'r', alpha=0.5)
+        y_max = max([max(y_smooth), 4000])
+        self.plot.axes.set_ylim(-y_max, y_max)
+        self.plot.axes.scatter(range(0, len(input_data)), y_smooth, c=self.gradient, s=2)
+        # self.plot.axes.plot(range(0, len(input_data)), y_smooth, color=self.gradient[0])
         # Trigger the canvas to update and redraw.
         self.plot.draw()
 
@@ -199,18 +238,29 @@ class ElevensLabS4TS(QMainWindow):
             return
         self.recFile.stop_recording()
         self.status_bar.showMessage('Transcribing...')
-        thread = threading.Thread(target=self.thread_target, args=('recorded.wav',))
-        thread.start()
+        self.s4ts('recorded.wav')
 
-    def thread_target(self, file: str):
-        text = whisper.transcribe(file)
+    def s4ts(self, file: str):
+        worker = S4TSWorker(file, self.tts, self.voice_combo.currentText())
+        worker.signals.transcription_finished.connect(self.notify_transcription_done)
+        worker.signals.tts_finished.connect(self.play_audio)
+        self.threadpool.start(worker)
+
+    def notify_transcription_done(self, text: str):
         self.transcription_preview.setText(text)
         self.status_bar.showMessage('Transcription done')
-        self.tts.tts(text, self.voice_combo.currentText())
-        if not self.transcript_mode_checkbox.isChecked():
-            self.status_bar.showMessage('Playing audio')
-            self.media_player.setSource('elevenlabs.wav')
-            self.media_player.play()
+
+    def play_audio(self):
+        if self.transcript_mode_checkbox.isChecked():
+            return
+
+        self.status_bar.showMessage('Playing audio')
+        print(f'Media player status: {self.media_player.mediaStatus()}')
+        self.media_player.setSource(QUrl.fromLocalFile('elevenlabs.wav'))
+        self.media_player.setSource('elevenlabs.wav')
+        self.media_player.setPosition(0)
+        print(f'Media player status: {self.media_player.mediaStatus()}')
+        self.media_player.play()
 
     def on_use_transcript_mode_checkbox(self):
         checked = self.transcript_mode_checkbox.isChecked()
