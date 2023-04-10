@@ -86,7 +86,7 @@ class RecordingFile(object):
             data = [int.from_bytes(in_data[i:i + 2], byteorder='little', signed=True) for i in
                     range(0, len(in_data), 2)]
             if self.update_func is not None:
-                self.update_func(data, frame_count)
+                self.update_func(data)
             return in_data, pyaudio.paContinue
 
         return callback

@@ -63,6 +63,11 @@ class ElevensLabS4TS(QMainWindow):
     def __init__(self, *args, **kwargs):
         super(ElevensLabS4TS, self).__init__(*args, **kwargs)
         self.threadpool = QtCore.QThreadPool()
+        self.is_recording = False
+        self.is_flattening = False
+
+        self.last_wave = None
+
         self.recFile = None
         self.config = ConfigFile('config')
 
@@ -114,7 +119,7 @@ class ElevensLabS4TS(QMainWindow):
 
         self.plot = MplCanvas(self, width=5, height=1, dpi=100)
         x = [i for i in range(0, 1024)]
-        y = [self.wave_func(x) for x in range(0, 1024)]
+        y = [util.pretty_wave(x) for x in range(0, 1024)]
         y_max = max([max(y), 4000])
         self.plot.axes.set_ylim(-y_max, y_max)
         self.gradient = util.calculate_gradient_str('0x2b5876', '0x4e4376', 1024)
@@ -159,11 +164,6 @@ class ElevensLabS4TS(QMainWindow):
         self.setFixedSize(420, 370)
         self.show()
 
-    @staticmethod
-    def wave_func(x):
-        x = x / 200
-        return (np.sin(8.8 * np.pi * x) + np.sin(11.0 * np.pi * x) + np.sin(13.2 * np.pi * x)) * 10 ** 3.1
-
     def _setup_player(self):
         self.media_player = QMediaPlayer()
         self.output = QAudioOutput()
@@ -185,7 +185,7 @@ class ElevensLabS4TS(QMainWindow):
                 if j.startswith(i):
                     self.input_devices[self.input_devices.index(i)] = j
 
-    def update_plot(self, input_data, frame_count):
+    def update_plot(self, input_data):
         self.plot.axes.cla()  # Clear the canvas.
         self.plot.axes.margins(0, 0, tight=True)
         self.plot.axes.axis('off')
@@ -197,6 +197,25 @@ class ElevensLabS4TS(QMainWindow):
         # self.plot.axes.plot(range(0, len(input_data)), y_smooth, color=self.gradient[0])
         # Trigger the canvas to update and redraw.
         self.plot.draw()
+        self.last_wave = y_smooth
+
+    def slow_flatten_wave(self) -> None:
+        print('is recording: ', self.is_recording)
+        if self.is_recording:
+            return
+        wave = self.last_wave[:]
+        print(np.mean([np.abs(x) for x in wave]))
+        while (avg := np.mean([np.abs(x) for x in wave])) > 40:
+            print('average: ', avg)
+            window_size = 100
+            wave = np.convolve(wave, np.ones(window_size) / window_size, mode='same')
+            self.update_plot(wave)
+        wave = [0 for _ in range(0, len(wave))]
+        self.update_plot(wave)
+
+    def wave_flattener(self):
+        thread = threading.Thread(target=self.slow_flatten_wave)
+        thread.start()
 
     def _setup_voice(self):
         self.tts = ElevenLabsTTS(self.config)
@@ -232,12 +251,15 @@ class ElevensLabS4TS(QMainWindow):
     def on_record_button(self):
         self.recFile = self.recorder.open('recorded.wav', 'wb')
         self.recFile.start_recording(self.device_combo.currentIndex())
+        self.is_recording = True
 
     def on_stop_button(self):
         if self.recFile is None:
             return
         self.recFile.stop_recording()
+        self.is_recording = False
         self.status_bar.showMessage('Transcribing...')
+        self.wave_flattener()
         self.s4ts('recorded.wav')
 
     def s4ts(self, file: str):
