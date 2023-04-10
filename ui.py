@@ -12,6 +12,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 
 import record
+import util
 import whisper
 from configuration import ConfigFile, ConfigNode
 from elevenlabs_tts import ElevenLabsTTS
