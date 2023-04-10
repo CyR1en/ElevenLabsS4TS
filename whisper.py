@@ -31,3 +31,4 @@ def set_param_size(param_size: str = 'base'):
     tokenizer = WhisperTokenizerFast.from_pretrained(f'openai/whisper-{param_size}')
     processor = WhisperProcessor.from_pretrained(f'openai/whisper-{param_size}', tokenizer=tokenizer)
     model = WhisperForConditionalGeneration.from_pretrained(f'openai/whisper-{param_size}')
+    model.to(device)
