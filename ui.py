@@ -2,8 +2,9 @@ import sys
 import threading
 
 import numpy as np
-from PySide6 import QtGui
-from PySide6.QtCore import Qt
+import qdarktheme
+from PySide6 import QtCore
+from PySide6.QtCore import QUrl, QObject, QRunnable, Slot
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QMediaDevices
 from PySide6.QtWidgets import QMainWindow, QGridLayout, QWidget, QLabel, QApplication, QLineEdit, QComboBox, \
     QPushButton, QCheckBox, QStatusBar, QMessageBox
@@ -12,11 +13,8 @@ from matplotlib.figure import Figure
 
 import record
 import whisper
-from elevenlabs_tts import ElevenLabsTTS
-import qdarktheme
-
-import elevenlabs_tts
 from configuration import ConfigFile, ConfigNode
+from elevenlabs_tts import ElevenLabsTTS
 from record import Recorder
 
 
