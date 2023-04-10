@@ -15,7 +15,8 @@ model.config.forced_decoder_ids = None
 
 
 def is_cuda():
-    return device == 'cuda'
+    print('Using device: ', device)
+    return device.type == 'cuda'
 
 
 def transcribe(file_name: str) -> str:
