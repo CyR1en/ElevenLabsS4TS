@@ -29,7 +29,7 @@ class MplCanvas(FigureCanvasQTAgg):
         self.axes.margins(0, 0, tight=True)
         self.fig.set_constrained_layout_pads(w_pad=0.05, h_pad=0.05, wspace=0.05, hspace=0.05)
         self.fig.tight_layout()
-        self.fig.set_size_inches(self.fig.get_size_inches()[0], 0.5)
+        self.fig.set_size_inches(self.fig.get_size_inches()[0], self.fig.get_size_inches()[0])
         super(MplCanvas, self).__init__(self.fig)
 
 
@@ -156,7 +156,7 @@ class ElevensLabS4TS(QMainWindow):
         self.widget.setLayout(self.layout)
         self.setCentralWidget(self.widget)
         self.setStatusBar(self.status_bar)
-        self.setFixedSize(420, 333)
+        self.setFixedSize(420, 370)
         self.show()
 
     @staticmethod
@@ -221,7 +221,7 @@ class ElevensLabS4TS(QMainWindow):
         self.config.set(ConfigNode.VOICE, self.voice_combo.currentText())
 
     @staticmethod
-    def change_if_config_set(config_val: str, widget: QComboBox | QCheckBox):
+    def change_if_config_set(config_val: str, widget):
         if config_val == 'True' or config_val == 'False' or config_val == '0' or config_val == '1':
             widget.setChecked(config_val == 'True' or config_val == '1')
         elif config_val != '':
