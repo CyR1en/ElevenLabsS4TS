@@ -70,6 +70,9 @@ class ConfigNode(Enum):
     INPUT = ("Input", "")
     OUTPUT = ("Output", "")
     T_MODE = ("T_Mode", "0")
+    PROVIDER = ("Provider", "elevenlabs")
+    SIXTYDB_API_KEY = ("SixtyDB_API_KEY", "replace this with your 60db API key")
+    SIXTYDB_VOICE_ID = ("SixtyDB_Voice_ID", "fbb75ed2-975a-40c7-9e06-38e30524a9a1")
 
     def get_key(self):
         return self.value[0]

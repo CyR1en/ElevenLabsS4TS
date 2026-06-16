@@ -50,6 +50,21 @@ python3 ui.py
 - After transcription, the text will be sent to ElevenLabs using their API
 - The request returns an audio data that ElevenLabsS4TS plays through the set output device
 
+#### Choosing a TTS provider
+
+ElevenLabs S4TS supports more than one text-to-speech backend behind a common
+interface, selectable at runtime with the **Provider** dropdown:
+
+- **ElevenLabs** (default) — uses your ElevenLabs API key and exposes the voices
+  available on your account.
+- **60db** ([60db.ai](https://60db.ai)) — streams audio over the 60db WebSocket
+  API (`wss://api.60db.ai/ws/tts`). Paste your 60db API key in the `API Key`
+  field after selecting the provider. 60db has no list-voices endpoint, so the
+  `Voice` picker is seeded with the configured voice id
+  (`SixtyDB_Voice_ID` in `config.txt`, defaulting to 60db's documented default
+  voice). The provider, each provider's API key, and the 60db voice id are
+  persisted in `config.txt`.
+
 #### Future plans
 - Package application
 - Add ability to voice clone using mic

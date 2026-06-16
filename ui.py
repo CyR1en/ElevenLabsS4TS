@@ -15,8 +15,8 @@ import record
 import util
 import whisper
 from configuration import ConfigFile, ConfigNode
-from elevenlabs_tts import ElevenLabsTTS
 from record import Recorder
+from tts_provider import TTSProvider, make_tts
 
 
 class MplCanvas(FigureCanvasQTAgg):
@@ -35,13 +35,13 @@ class MplCanvas(FigureCanvasQTAgg):
 
 class S4TSWorkerSignals(QObject):
     transcription_finished = QtCore.Signal(str)
-    tts_finished = QtCore.Signal()
+    tts_finished = QtCore.Signal(str)
     finished = QtCore.Signal()
 
 
 class S4TSWorker(QRunnable):
 
-    def __init__(self, stt_file: str, tts: ElevenLabsTTS, voice: str, *args, **kwargs):
+    def __init__(self, stt_file: str, tts: TTSProvider, voice: str, *args, **kwargs):
         super(S4TSWorker, self).__init__()
         self.stt_file = stt_file
         self.tts = tts
@@ -55,11 +55,14 @@ class S4TSWorker(QRunnable):
     def run(self):
         text = whisper.transcribe(self.stt_file)
         self.signals.transcription_finished.emit(text)
-        self.tts.tts(text, self.voice)
-        self.signals.tts_finished.emit()
+        audio_path = self.tts.tts(text, self.voice)
+        self.signals.tts_finished.emit(audio_path)
 
 
 class ElevensLabS4TS(QMainWindow):
+    # Display label -> value stored in ConfigNode.PROVIDER
+    PROVIDERS = {"ElevenLabs": "elevenlabs", "60db": "sixtydb"}
+
     def __init__(self, *args, **kwargs):
         super(ElevensLabS4TS, self).__init__(*args, **kwargs)
         self.threadpool = QtCore.QThreadPool()
@@ -78,16 +81,22 @@ class ElevensLabS4TS(QMainWindow):
         self.layout = QGridLayout()
 
         # Create widgets
-        api_key_label = QLabel("API Key")
         self._setup_player()
 
+        provider_label = QLabel("Provider")
+        self.provider_combo = QComboBox()
+        self.provider_combo.addItems(list(self.PROVIDERS.keys()))
+        self.change_if_config_set(self._provider_label_for(self.config.get(ConfigNode.PROVIDER)),
+                                  self.provider_combo)
+        self.provider_combo.currentTextChanged.connect(self.on_provider_changed)
+
+        api_key_label = QLabel("API Key")
         self.api_key_input = QLineEdit()
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        if self._set_up_key():
-            self._setup_voice()
-        else:
-            self.api_key_input.setPlaceholderText("Enter your API key")
-            self.api_key_input.returnPressed.connect(self.on_api_key_input)
+        self.voice_label = None
+        self.voice_combo = None
+        self.tts = None
+        self._setup_key_and_voice()
 
         device_label = QLabel("Input")
         self.device_combo = QComboBox()
@@ -132,14 +141,17 @@ class ElevensLabS4TS(QMainWindow):
         self.status_bar = QStatusBar()
 
         # Set layout
-        self.layout.addWidget(api_key_label, 0, 0)
-        self.layout.addWidget(self.api_key_input, 0, 1)
+        self.layout.addWidget(provider_label, 0, 0)
+        self.layout.addWidget(self.provider_combo, 0, 1)
 
-        self.layout.addWidget(device_label, 1, 0)
-        self.layout.addWidget(self.device_combo, 1, 1)
+        self.layout.addWidget(api_key_label, 1, 0)
+        self.layout.addWidget(self.api_key_input, 1, 1)
 
-        self.layout.addWidget(self.output_label, 2, 0)
-        self.layout.addWidget(self.output_combo, 2, 1)
+        self.layout.addWidget(device_label, 2, 0)
+        self.layout.addWidget(self.device_combo, 2, 1)
+
+        self.layout.addWidget(self.output_label, 3, 0)
+        self.layout.addWidget(self.output_combo, 3, 1)
 
         toggle_layout = QGridLayout()
         toggle_layout.addWidget(self.transcript_mode_label, 0, 0)
@@ -147,21 +159,21 @@ class ElevensLabS4TS(QMainWindow):
         toggle_layout.addWidget(self.use_medium_model_label, 0, 2)
         toggle_layout.addWidget(self.use_medium_model_checkbox, 0, 3)
 
-        self.layout.addLayout(toggle_layout, 4, 0, 1, 2)
+        self.layout.addLayout(toggle_layout, 5, 0, 1, 2)
 
-        self.layout.addWidget(self.record_button, 5, 0, 1, 2)
+        self.layout.addWidget(self.record_button, 6, 0, 1, 2)
 
-        self.layout.addWidget(self.plot, 6, 0, 1, 2)
+        self.layout.addWidget(self.plot, 7, 0, 1, 2)
 
-        self.layout.addWidget(self.transcript, 7, 0)
-        self.layout.addWidget(self.transcription_preview, 8, 0, 1, 2)
+        self.layout.addWidget(self.transcript, 8, 0)
+        self.layout.addWidget(self.transcription_preview, 9, 0, 1, 2)
 
         # Set layout for central widget
         self.widget = QWidget()
         self.widget.setLayout(self.layout)
         self.setCentralWidget(self.widget)
         self.setStatusBar(self.status_bar)
-        self.setFixedSize(420, 370)
+        self.setFixedSize(420, 410)
         self.show()
 
     def _setup_player(self):
@@ -170,9 +182,41 @@ class ElevensLabS4TS(QMainWindow):
         self.output.setVolume(1.0)
         self.media_player.setAudioOutput(self.output)
 
+    def _provider_label_for(self, value: str) -> str:
+        """Map a stored provider value back to its display label."""
+        for label, val in self.PROVIDERS.items():
+            if val == value:
+                return label
+        return next(iter(self.PROVIDERS))
+
+    def _provider_key_node(self) -> ConfigNode:
+        """The API-key ConfigNode that belongs to the selected provider."""
+        provider = self.config.get(ConfigNode.PROVIDER)
+        if provider == "sixtydb":
+            return ConfigNode.SIXTYDB_API_KEY
+        return ConfigNode.API_KEY
+
+    def _setup_key_and_voice(self):
+        """
+        Reflect the selected provider in the API-key field and, if a key is
+        already stored, build the provider and its voice picker.
+        """
+        try:
+            self.api_key_input.returnPressed.disconnect(self.on_api_key_input)
+        except (RuntimeError, TypeError):
+            pass
+        if self._set_up_key():
+            self._setup_voice()
+        else:
+            self.api_key_input.clear()
+            self.api_key_input.setDisabled(False)
+            self.api_key_input.setPlaceholderText("Enter your API key")
+            self.api_key_input.returnPressed.connect(self.on_api_key_input)
+
     def _set_up_key(self) -> bool:
-        key = self.config.get(ConfigNode.API_KEY)
-        if key != ConfigNode.API_KEY.get_value():
+        node = self._provider_key_node()
+        key = self.config.get(node)
+        if key != node.get_value():
             self.api_key_input.setText(key)
             self.api_key_input.setDisabled(True)
             return True
@@ -218,14 +262,34 @@ class ElevensLabS4TS(QMainWindow):
         thread.start()
 
     def _setup_voice(self):
-        self.tts = ElevenLabsTTS(self.config)
+        self._clear_voice()
+        self.tts = make_tts(self.config)
         self.voice_label = QLabel("Voice")
         self.voice_combo = QComboBox()
         self.voice_combo.addItems(self.tts.get_voices())
         self.change_if_config_set(self.config.get(ConfigNode.VOICE), self.voice_combo)
         self.voice_combo.currentIndexChanged.connect(self.on_voice_combo_index_changed)
-        self.layout.addWidget(self.voice_label, 3, 0)
-        self.layout.addWidget(self.voice_combo, 3, 1)
+        self.layout.addWidget(self.voice_label, 4, 0)
+        self.layout.addWidget(self.voice_combo, 4, 1)
+
+    def _clear_voice(self):
+        """Remove the voice picker so it can be rebuilt for another provider."""
+        for widget in (self.voice_label, self.voice_combo):
+            if widget is not None:
+                self.layout.removeWidget(widget)
+                widget.deleteLater()
+        self.voice_label = None
+        self.voice_combo = None
+        self.tts = None
+
+    def on_provider_changed(self):
+        provider = self.PROVIDERS[self.provider_combo.currentText()]
+        self.config.set(ConfigNode.PROVIDER, provider)
+        # Voice ids/names are provider-specific, so drop the saved selection.
+        self.config.set(ConfigNode.VOICE, "")
+        self._clear_voice()
+        self._setup_key_and_voice()
+        self.status_bar.showMessage(f'Provider set to {self.provider_combo.currentText()}')
 
     def on_device_combo_name_changed(self):
         curr_name = self.device_combo.currentText()
@@ -263,6 +327,9 @@ class ElevensLabS4TS(QMainWindow):
         self.s4ts('recorded.wav')
 
     def s4ts(self, file: str):
+        if self.tts is None or self.voice_combo is None:
+            self.status_bar.showMessage('Set your API key first')
+            return
         worker = S4TSWorker(file, self.tts, self.voice_combo.currentText())
         worker.signals.transcription_finished.connect(self.notify_transcription_done)
         worker.signals.tts_finished.connect(self.play_audio)
@@ -272,14 +339,13 @@ class ElevensLabS4TS(QMainWindow):
         self.transcription_preview.setText(text)
         self.status_bar.showMessage('Transcription done')
 
-    def play_audio(self):
+    def play_audio(self, audio_path: str):
         if self.transcript_mode_checkbox.isChecked():
             return
 
         self.status_bar.showMessage('Playing audio')
         print(f'Media player status: {self.media_player.mediaStatus()}')
-        self.media_player.setSource(QUrl.fromLocalFile('elevenlabs.wav'))
-        self.media_player.setSource('elevenlabs.wav')
+        self.media_player.setSource(QUrl.fromLocalFile(audio_path))
         self.media_player.setPosition(0)
         print(f'Media player status: {self.media_player.mediaStatus()}')
         self.media_player.play()
@@ -319,7 +385,7 @@ class ElevensLabS4TS(QMainWindow):
 
     def on_api_key_input(self):
         self.api_key_input.setDisabled(True)
-        self.config.set(ConfigNode.API_KEY, self.api_key_input.text())
+        self.config.set(self._provider_key_node(), self.api_key_input.text())
         self._setup_voice()
 
 
